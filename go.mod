@@ -2,8 +2,8 @@ module github.com/megaport/terraform-provider-megaport
 
 go 1.13
 
-require (
-	github.com/hashicorp/terraform-plugin-sdk v1.9.1
-	github.com/megaport/megaportgo v0.1.9-beta
-)
+replace github.com/megaport/megaportgo => ../megaportgo
 
+require github.com/hashicorp/terraform-plugin-sdk/v2 v2.14.0
+
+require github.com/megaport/megaportgo v0.1.9-beta
