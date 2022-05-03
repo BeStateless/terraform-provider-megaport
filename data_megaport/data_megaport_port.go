@@ -23,7 +23,7 @@ import (
 func MegaportPort() *schema.Resource {
 	return &schema.Resource{
 		Read:   dataMegaportPortRead,
-		Schema: schema_megaport.DataPortSchema(),
+		Schema: schema_megaport.ResourcePortSchema(),
 	}
 }
 
