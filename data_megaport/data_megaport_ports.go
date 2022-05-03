@@ -30,40 +30,20 @@ func MegaportPorts() *schema.Resource {
 func dataMegaportPortsRead(d *schema.ResourceData, m interface{}) error {
 	port := m.(*terraform_utility.MegaportClient).Port
 
-	portId := d.Get("port_id").(string)
-	d.SetId(portId)
+	//portId := d.Get("product_id").(string)
+	d.SetId("my-fake-id")
 	ports, retrievalErr := port.GetPorts()
 
 	if retrievalErr != nil {
 		return retrievalErr
 	}
 
-	var converted []*schema.ResourceData
+	var converted []string
 
 	for _, port := range ports {
-		dd := &schema.ResourceData{}
-		dd.Set("id", port.UID)
-		dd.Set("uid", port.UID)
-		dd.Set("port_name", port.Name)
-		dd.Set("type", port.Type)
-		dd.Set("provisioning_status", port.ProvisioningStatus)
-		dd.Set("create_date", port.CreateDate)
-		dd.Set("created_by", port.CreatedBy)
-		dd.Set("port_speed", port.PortSpeed)
-		dd.Set("live_date", port.LiveDate)
-		dd.Set("market_code", port.Market)
-		dd.Set("location_id", port.LocationID)
-		dd.Set("marketplace_visibility", port.MarketplaceVisibility)
-		dd.Set("company_name", port.CompanyName)
-		dd.Set("term", port.ContractTermMonths)
-		dd.Set("lag_primary", port.LAGPrimary)
-		dd.Set("lag_id", port.LAGID)
-		dd.Set("locked", port.Locked)
-		dd.Set("admin_locked", port.AdminLocked)
-		converted = append(converted, dd)
+		converted = append(converted, port.UID)
 	}
 
-	d.Set("id", 19)
 	d.Set("ports", converted)
 
 	return nil
