@@ -14,17 +14,17 @@
 
 package schema_megaport
 
-import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+import (
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+)
 
-// DataLocationsSchema is the data schema of a Megaport Locations query
-
-func DataLocationsSchema() map[string]*schema.Schema {
+func DataPortsSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"locations": {
+		"ports": {
 			Type:     schema.TypeList,
 			Computed: true,
 			Elem: &schema.Resource{
-				Schema: DataLocationSchema(),
+				Schema: ResourcePortSchema(),
 			},
 		},
 	}

@@ -15,6 +15,10 @@
 package data_megaport
 
 import (
+	"context"
+	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/megaport/terraform-provider-megaport/schema_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
@@ -22,26 +26,56 @@ import (
 
 func MegaportLocations() *schema.Resource {
 	return &schema.Resource{
-		Read:   dataMegaportLocationsRead,
-		Schema: schema_megaport.DataLocationsSchema(),
+		ReadContext: dataMegaportLocationsRead,
+		Schema:      schema_megaport.DataLocationsSchema(),
 	}
 }
 
-func dataMegaportLocationsRead(d *schema.ResourceData, m interface{}) error {
+func dataMegaportLocationsRead(c context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	errors := make([]diag.Diagnostic, 0)
 	location := m.(*terraform_utility.MegaportClient).Location
-	locations, err := location.GetAllLocations()
+	locationsResponse, err := location.GetAllLocations()
 	if err != nil {
-		return err
+		errors = append(errors, diag.Diagnostic{
+			Severity:      diag.Error,
+			Summary:       "Failed to get megaport locations list",
+			Detail:        err.Error(),
+			AttributePath: make([]cty.PathStep, 0),
+		})
+		return errors
 	}
-	var locationNames []string
 
-	for _, loc := range locations {
-		locationNames = append(locationNames, loc.Name)
+	locations := make([]map[string]interface{}, len(locationsResponse))
+
+	for i, loc := range locationsResponse {
+		location := make(map[string]interface{})
+		location["address"] = loc.Address
+		location["country"] = loc.Country
+		location["has_mcr"] = loc.VRouterAvailable
+		location["id"] = loc.ID
+		location["latitude"] = loc.Latitude
+		location["live_date"] = loc.LiveDate
+		location["longitude"] = loc.Longitude
+		location["market"] = loc.Market
+		location["metro"] = loc.Metro
+		location["name"] = loc.Name
+		location["site_code"] = loc.SiteCode
+		location["status"] = loc.Status
+		locations[i] = location
 	}
-	d.SetId("potato")
-	err = d.Set("location_names", locationNames)
+
+	id, err := uuid.GenerateUUID()
+
 	if err != nil {
-		return err
+		errors = append(errors, diag.Diagnostic{
+			Severity:      diag.Error,
+			Summary:       err.Error(),
+			Detail:        "Failed to generate UUID as Id",
+			AttributePath: make([]cty.PathStep, 0),
+		})
+		return errors
 	}
-	return nil
+	d.Set("locations", &locations)
+	d.SetId(id)
+	return errors
 }
