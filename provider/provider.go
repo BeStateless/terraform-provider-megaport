@@ -73,6 +73,7 @@ func Provider() *schema.Provider {
 		DataSourcesMap: map[string]*schema.Resource{
 			"megaport_port":             data_megaport.MegaportPort(),
 			"megaport_location":         data_megaport.MegaportLocation(),
+			"megaport_locations":        data_megaport.MegaportLocations(),
 			"megaport_vxc":              data_megaport.MegaportVXC(),
 			"megaport_partner_port":     data_megaport.MegaportPartnerPort(),
 			"megaport_aws_connection":   data_megaport.MegaportAWSConnection(),
