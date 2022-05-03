@@ -47,11 +47,13 @@ func Provider() *schema.Provider {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MEGAPORT_PASSWORD", nil),
+				Sensitive:   true,
 			},
 			"mfa_otp_key": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MEGAPORT_MFA_OTP_KEY", nil),
+				Sensitive:   true,
 			},
 			"delete_ports": {
 				Type:     schema.TypeBool,
