@@ -18,6 +18,10 @@ import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
 func ResourcePortSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
+		"uid": {
+			Type:     schema.TypeString,
+			Computed: true,
+		},
 		"port_name": {
 			Type:     schema.TypeString,
 			Required: true,

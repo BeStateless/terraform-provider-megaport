@@ -23,7 +23,9 @@ func ResourcePortsSchema() map[string]*schema.Schema {
 		"ports": {
 			Type:     schema.TypeList,
 			Computed: true,
-			Elem:     &schema.Schema{Type: schema.TypeString},
+			Elem: &schema.Resource{
+				Schema: ResourcePortSchema(),
+			},
 		},
 	}
 }

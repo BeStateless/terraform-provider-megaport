@@ -15,7 +15,9 @@
 package data_megaport
 
 import (
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/megaport/megaportgo/types"
 	"github.com/megaport/terraform-provider-megaport/schema_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
 )
@@ -30,21 +32,47 @@ func MegaportPorts() *schema.Resource {
 func dataMegaportPortsRead(d *schema.ResourceData, m interface{}) error {
 	port := m.(*terraform_utility.MegaportClient).Port
 
-	//portId := d.Get("product_id").(string)
-	d.SetId("my-fake-id")
+	id, err := uuid.GenerateUUID()
+
+	if err != nil {
+		return err
+	}
+
 	ports, retrievalErr := port.GetPorts()
 
 	if retrievalErr != nil {
 		return retrievalErr
 	}
 
-	var converted []string
+	converted := make([]map[string]interface{}, len(ports))
 
-	for _, port := range ports {
-		converted = append(converted, port.UID)
+	for i, port := range ports {
+		converted[i] = tfizePort(port)
 	}
 
-	d.Set("ports", converted)
+	d.SetId(id)
 
-	return nil
+	return d.Set("ports", &converted)
+}
+
+func tfizePort(port types.Port) map[string]interface{} {
+	tf := make(map[string]interface{})
+	tf["uid"] = port.UID
+	tf["port_name"] = port.Name
+	tf["type"] = port.Type
+	tf["provisioning_status"] = port.ProvisioningStatus
+	tf["create_date"] = port.CreateDate
+	tf["created_by"] = port.CreatedBy
+	tf["port_speed"] = port.PortSpeed
+	tf["live_date"] = port.LiveDate
+	tf["market_code"] = port.Market
+	tf["location_id"] = port.LocationID
+	tf["marketplace_visibility"] = port.MarketplaceVisibility
+	tf["company_name"] = port.CompanyName
+	tf["term"] = port.ContractTermMonths
+	tf["lag_primary"] = port.LAGPrimary
+	tf["lag_id"] = port.LAGID
+	tf["locked"] = port.Locked
+	tf["admin_locked"] = port.AdminLocked
+	return tf
 }
