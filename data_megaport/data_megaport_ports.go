@@ -25,7 +25,7 @@ import (
 func MegaportPorts() *schema.Resource {
 	return &schema.Resource{
 		Read:   dataMegaportPortsRead,
-		Schema: schema_megaport.ResourcePortsSchema(),
+		Schema: schema_megaport.DataPortsSchema(),
 	}
 }
 
@@ -57,22 +57,22 @@ func dataMegaportPortsRead(d *schema.ResourceData, m interface{}) error {
 
 func tfizePort(port types.Port) map[string]interface{} {
 	tf := make(map[string]interface{})
-	tf["uid"] = port.UID
-	tf["port_name"] = port.Name
-	tf["type"] = port.Type
-	tf["provisioning_status"] = port.ProvisioningStatus
+	tf["admin_locked"] = port.AdminLocked
+	tf["company_name"] = port.CompanyName
 	tf["create_date"] = port.CreateDate
 	tf["created_by"] = port.CreatedBy
-	tf["port_speed"] = port.PortSpeed
-	tf["live_date"] = port.LiveDate
-	tf["market_code"] = port.Market
-	tf["location_id"] = port.LocationID
-	tf["marketplace_visibility"] = port.MarketplaceVisibility
-	tf["company_name"] = port.CompanyName
-	tf["term"] = port.ContractTermMonths
-	tf["lag_primary"] = port.LAGPrimary
 	tf["lag_id"] = port.LAGID
+	tf["lag_primary"] = port.LAGPrimary
+	tf["live_date"] = port.LiveDate
+	tf["location_id"] = port.LocationID
 	tf["locked"] = port.Locked
-	tf["admin_locked"] = port.AdminLocked
+	tf["market_code"] = port.Market
+	tf["marketplace_visibility"] = port.MarketplaceVisibility
+	tf["port_name"] = port.Name
+	tf["port_speed"] = port.PortSpeed
+	tf["provisioning_status"] = port.ProvisioningStatus
+	tf["term"] = port.ContractTermMonths
+	tf["type"] = port.Type
+	tf["uid"] = port.UID
 	return tf
 }

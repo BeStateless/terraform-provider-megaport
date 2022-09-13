@@ -18,7 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func ResourcePortsSchema() map[string]*schema.Schema {
+func DataPortsSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"ports": {
 			Type:     schema.TypeList,
