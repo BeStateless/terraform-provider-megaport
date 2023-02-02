@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package provider
 
 import (
 	"errors"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/megaport/terraform-provider-megaport/data_megaport"
 	"github.com/megaport/terraform-provider-megaport/resource_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
