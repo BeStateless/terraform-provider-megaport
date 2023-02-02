@@ -18,7 +18,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/megaport/megaportgo/types"
 	"github.com/megaport/terraform-provider-megaport/schema_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
@@ -155,7 +155,7 @@ func resourceMegaportAWSConnectionRead(d *schema.ResourceData, m interface{}) er
 			} else if len(partnerPorts) > 1 {
 				return errors.New(TooManyPartnerPortsError)
 			}
-			cspSettings["requested_product_id"] = partnerPorts[0].ProductUID			
+			cspSettings["requested_product_id"] = partnerPorts[0].ProductUID
 			if err := d.Set("csp_settings", []map[string]interface{}{cspSettings}); err != nil {
 				return err
 			}
