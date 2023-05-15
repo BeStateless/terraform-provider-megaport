@@ -3,7 +3,7 @@ module github.com/megaport/terraform-provider-megaport
 // For local development
 //replace github.com/megaport/megaportgo => <megaportgo local directory>
 
-go 1.13
+go 1.20
 
 require (
 	github.com/aws/aws-sdk-go v1.44.263
