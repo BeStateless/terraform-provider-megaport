@@ -2,6 +2,8 @@ module github.com/megaport/terraform-provider-megaport
 
 // For local development
 //replace github.com/megaport/megaportgo => <megaportgo local directory>
+// vxc-wait-retry-with-context
+replace github.com/megaport/megaportgo => github.com/bestateless/megaportgo v0.1.11-stateless.0.20230518042555-33e752a3af41
 
 go 1.20
 
