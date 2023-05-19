@@ -15,11 +15,16 @@
 package resource_megaport
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+
+	"github.com/megaport/megaportgo/mega_err"
 	vxc_service "github.com/megaport/megaportgo/service/vxc"
 	"github.com/megaport/megaportgo/types"
+
 	"github.com/megaport/terraform-provider-megaport/schema_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
 )
@@ -114,9 +119,43 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 	}
 
 	d.SetId(vxcId)
-	vxc.WaitForVXCProvisioning(vxcId)
-	time.Sleep(60 * time.Second) // wait so that the vLANs will be available.
+
+	// default waits up to 15 minutes for it to report that the VXC is LIVE,
+	// checking every 30 seconds and logging every 2 minutes 30 seconds.
+	// _, err := vxc.WaitForVXCProvisioning(vxcId)
+	// we are going to set an initial timeout of 15 minutes. If it expires, we'll
+	// subtract 5 minutes and try again for up to a total of 30 minutes.
+	timeout := 15 * time.Minute
+	pollFrequency := 30 * time.Second
+	for {
+		if timeout <= 0 {
+			return errors.New(mega_err.ERR_VXC_PROVISION_TIMEOUT_EXCEED)
+		}
+
+		_, err := doWaitFor(
+			context.Background(), timeout, func(ctx context.Context) (bool, error) {
+				return vxc.WaitForVXCProvisioningCtx(ctx, pollFrequency, vxcId)
+			},
+		)
+		if err == nil {
+			break
+		}
+
+		if err.Error() == mega_err.ERR_VXC_PROVISION_TIMEOUT_EXCEED ||
+			err.Error() == mega_err.ERR_VXC_NOT_LIVE {
+			timeout = timeout - (5 * time.Minute)
+		}
+	}
 	return resourceMegaportAzureConnectionRead(d, m)
+}
+
+func doWaitFor(parentCtx context.Context, timeout time.Duration, f func(ctx context.Context) (bool, error)) (
+	bool,
+	error,
+) {
+	ctx, cancelFunc := context.WithTimeout(parentCtx, timeout)
+	defer cancelFunc()
+	return f(ctx)
 }
 
 func resourceMegaportAzureConnectionRead(d *schema.ResourceData, m interface{}) error {
@@ -134,19 +173,46 @@ func resourceMegaportAzureConnectionUpdate(d *schema.ResourceData, m interface{}
 	}
 
 	if d.HasChange("vxc_name") || d.HasChange("rate_limit") || d.HasChange("a_end") {
-		_, updateErr := vxc.UpdateVXC(d.Id(), d.Get("vxc_name").(string),
+		_, updateErr := vxc.UpdateVXC(
+			d.Id(), d.Get("vxc_name").(string),
 			d.Get("rate_limit").(int),
 			aVlan,
-			0)
+			0,
+		)
 
 		if updateErr != nil {
 			return updateErr
 		}
 
-		vxc.WaitForVXCUpdated(d.Id(), d.Get("vxc_name").(string),
-			d.Get("rate_limit").(int),
-			aVlan,
-			0)
+		timeout := 15 * time.Minute
+		pollFrequency := 30 * time.Second
+		for {
+			if timeout <= 0 {
+				return errors.New(mega_err.ERR_VXC_UPDATE_TIMEOUT_EXCEED)
+			}
+
+			_, err := doWaitFor(
+				context.Background(), timeout, func(ctx context.Context) (bool, error) {
+					return vxc.WaitForVXCUpdatedCtx(
+						ctx,
+						pollFrequency,
+						d.Id(),
+						d.Get("vxc_name").(string),
+						d.Get("rate_limit").(int),
+						aVlan,
+						0,
+					)
+				},
+			)
+			if err == nil {
+				break
+			}
+
+			if err.Error() == mega_err.ERR_VXC_UPDATE_TIMEOUT_EXCEED ||
+				err.Error() == mega_err.ERR_VXC_NOT_LIVE {
+				timeout = timeout - (5 * time.Minute)
+			}
+		}
 	}
 
 	return resourceMegaportAzureConnectionRead(d, m)
