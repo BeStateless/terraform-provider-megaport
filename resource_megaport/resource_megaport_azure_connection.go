@@ -49,6 +49,7 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 	cspSettings := d.Get("csp_settings").(*schema.Set).List()[0].(map[string]interface{})
 	rateLimit := d.Get("rate_limit").(int)
 	serviceKey := cspSettings["service_key"].(string)
+	var innerVlan *int = nil
 
 	// peerings
 	var peerings []types.PartnerOrderAzurePeeringConfig
@@ -62,6 +63,7 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 			SharedKey:       private_peering["shared_key"].(string),
 			VLAN:            private_peering["requested_vlan"].(int),
 		}
+		innerVlan = &new_private_peering.VLAN
 		peerings = append(peerings, new_private_peering)
 	} else if cspSettings["auto_create_private_peering"].(bool) {
 		new_private_peering := types.PartnerOrderAzurePeeringConfig{
@@ -126,6 +128,7 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 	bEndConfiguration := types.PartnerOrderBEndConfiguration{
 		PartnerPortID: partnerPortId,
 		PartnerConfig: partnerConfig,
+		InnerVLAN:     innerVlan,
 	}
 
 	vxcId, buyErr := vxc.BuyPartnerVXC(
@@ -184,6 +187,28 @@ func resourceMegaportAzureConnectionRead(d *schema.ResourceData, m interface{}) 
 	return ResourceMegaportVXCRead(d, m)
 }
 
+func checkedCast[T interface{}](input *interface{}) *T {
+	if input == nil {
+		return nil
+	}
+	cast, check := (*input).(T)
+	if !check {
+		return nil
+	}
+	return &cast
+}
+
+func digOutTfConfig[T interface{}](d *schema.ResourceData, key string) *T {
+	if d == nil {
+		return nil
+	}
+	keyLookup, found := (*d).GetOk(key)
+	if !found {
+		return nil
+	}
+	return checkedCast[T](&keyLookup)
+}
+
 func resourceMegaportAzureConnectionUpdate(d *schema.ResourceData, m interface{}) error {
 	vxc := m.(*terraform_utility.MegaportClient).Vxc
 	aVlan := 0
@@ -194,13 +219,25 @@ func resourceMegaportAzureConnectionUpdate(d *schema.ResourceData, m interface{}
 		}
 	}
 
-	if d.HasChange("vxc_name") || d.HasChange("rate_limit") || d.HasChange("a_end") {
-		_, updateErr := vxc.UpdateVXC(
-			d.Id(), d.Get("vxc_name").(string),
+	if d.HasChange("vxc_name") || d.HasChange("rate_limit") || d.HasChange("a_end") || d.HasChange("csp_settings") {
+		var requestedVlan *int = nil
+		cspSettings := digOutTfConfig[map[string]interface{}](d, "csp_settings")
+		if cspSettings != nil {
+			privatePeeringTf, privatePeeringFound := (*cspSettings)["private_peering"]
+			if privatePeeringFound {
+				privatePeering := checkedCast[map[string]interface{}](&privatePeeringTf)
+				if privatePeering != nil {
+					vlanLookup := (*privatePeering)["requested_vlan"]
+					requestedVlan = checkedCast[int](&vlanLookup)
+				}
+			}
+		}
+
+		_, updateErr := vxc.UpdateVXCWithInnerVlan(d.Id(), d.Get("vxc_name").(string),
 			d.Get("rate_limit").(int),
 			aVlan,
 			0,
-		)
+			requestedVlan)
 
 		if updateErr != nil {
 			return updateErr
