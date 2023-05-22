@@ -88,6 +88,28 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 		peerings = append(peerings, new_microsoft_peering)
 	}
 
+	// Azure seems to be eventually consistent.  Thus we wait for megaport to see the service key before we move on
+	_, serviceKeyErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if _, serviceKeyLookupErr := vxc.LookupAzureServiceKey(serviceKey); serviceKeyLookupErr != nil {
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				default:
+					continue
+				}
+			}
+			break
+		}
+		return true, nil
+	})
+
+	if serviceKeyErr != nil {
+		return serviceKeyErr
+	}
+
 	// get partner port
 	partnerPortId, partnerLookupErr := vxc.LookupPartnerPorts(serviceKey, rateLimit, vxc_service.PARTNER_AZURE, "")
 	if partnerLookupErr != nil {
