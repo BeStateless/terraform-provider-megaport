@@ -15,7 +15,7 @@
 provider_directory="$(pwd)"
 GOSUMDB=off go mod download
 rm -f bin/*
-version="$(git describe --tags)"
+version="v0.2.10-stateless"
 provider_filename="$(pwd)/bin/terraform-provider-megaport_$version"
 provider_filename_no_version="$(pwd)/bin/terraform-provider-megaport"
 go build -o $provider_filename
