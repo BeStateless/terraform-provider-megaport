@@ -15,8 +15,10 @@
 package resource_megaport
 
 import (
+	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -103,12 +105,48 @@ func resourceMegaportAWSConnectionRead(d *schema.ResourceData, m interface{}) er
 	d.Set("vxc_internal_type", "aws")
 
 	// Aws read
-	if vifId := vxc.ExtractAwsId(vxcDetails); vifId != "" {
-		d.Set("aws_id", vifId)
+	_, awsIdErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if vifId := vxc.ExtractAwsId(vxcDetails); vifId != "" {
+				d.Set("aws_id", vifId)
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			default:
+				continue
+			}
+		}
+		return true, nil
+	})
+
+	if awsIdErr != nil {
+		return awsIdErr
 	}
 
-	if connectionId := vxc.ExtractConnectionId(vxcDetails); connectionId != "" {
-		d.Set("connection_id", connectionId)
+	_, connectionIderr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if connectionId := vxc.ExtractConnectionId(vxcDetails); connectionId != "" {
+				d.Set("connection_id", connectionId)
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			default:
+				continue
+			}
+		}
+		return true, nil
+	})
+
+	if connectionIderr != nil {
+		return connectionIderr
 	}
 
 	// AWS CSP read
