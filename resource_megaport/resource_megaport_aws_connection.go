@@ -118,7 +118,7 @@ func resourceMegaportAWSConnectionRead(d *schema.ResourceData, m interface{}) er
 	switch connectType {
 	case types.CONNECT_TYPE_AWS_VIF:
 		{
-			_, awsIdErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+			_, awsIdErr := doWaitFor(context.Background(), 30*time.Minute, func(ctx context.Context) (bool, error) {
 				ticker := time.NewTicker(30 * time.Second)
 				defer ticker.Stop()
 				for range ticker.C {
@@ -149,7 +149,7 @@ func resourceMegaportAWSConnectionRead(d *schema.ResourceData, m interface{}) er
 		}
 	case types.CONNECT_TYPE_AWS_HOSTED_CONNECTION:
 		{
-			_, connectionIderr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+			_, connectionIderr := doWaitFor(context.Background(), 30*time.Minute, func(ctx context.Context) (bool, error) {
 				ticker := time.NewTicker(30 * time.Second)
 				defer ticker.Stop()
 				for range ticker.C {
