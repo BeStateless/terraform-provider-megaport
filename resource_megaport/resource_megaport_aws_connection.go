@@ -102,51 +102,74 @@ func resourceMegaportAWSConnectionRead(d *schema.ResourceData, m interface{}) er
 		return retrievalErr
 	}
 
-	d.Set("vxc_internal_type", "aws")
-
-	// Aws read
-	_, awsIdErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			if vifId := vxc.ExtractAwsId(vxcDetails); vifId != "" {
-				d.Set("aws_id", vifId)
-				break
-			}
-			select {
-			case <-ctx.Done():
-				return false, ctx.Err()
-			default:
-				continue
-			}
-		}
-		return true, nil
-	})
-
-	if awsIdErr != nil {
-		return awsIdErr
+	err := d.Set("vxc_internal_type", "aws")
+	if err != nil {
+		return err
 	}
 
-	_, connectionIderr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			if connectionId := vxc.ExtractConnectionId(vxcDetails); connectionId != "" {
-				d.Set("connection_id", connectionId)
-				break
-			}
-			select {
-			case <-ctx.Done():
-				return false, ctx.Err()
-			default:
-				continue
-			}
-		}
-		return true, nil
-	})
+	if d.Get("hosted_connection").(bool) {
 
-	if connectionIderr != nil {
-		return connectionIderr
+		_, connectionIderr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if connectionId := vxc.ExtractConnectionId(vxcDetails); connectionId != "" {
+					err := d.Set("connection_id", connectionId)
+					if err != nil {
+						return false, err
+					}
+					err = d.Set("aws_id", "")
+					if err != nil {
+						return false, err
+					}
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				default:
+					continue
+				}
+			}
+			return true, nil
+		})
+
+		if connectionIderr != nil {
+			return connectionIderr
+		}
+
+	} else {
+
+		// Aws read
+		_, awsIdErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if vifId := vxc.ExtractAwsId(vxcDetails); vifId != "" {
+					err := d.Set("aws_id", vifId)
+					if err != nil {
+						return false, err
+					}
+					err = d.Set("connection_id", "")
+					if err != nil {
+						return false, err
+					}
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				default:
+					continue
+				}
+			}
+			return true, nil
+		})
+
+		if awsIdErr != nil {
+			return awsIdErr
+		}
+
 	}
 
 	// AWS CSP read
