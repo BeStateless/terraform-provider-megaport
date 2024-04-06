@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package schema_megaport
 
-import (
-	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
-	"github.com/megaport/terraform-provider-megaport/provider"
-)
 import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-func main() {
-	plugin.Serve(&plugin.ServeOpts{
-		ProviderFunc: func() *schema.Provider {
-			return provider.Provider()
+// DataLocationsSchema is the data schema of a Megaport Locations query
+
+func DataLocationsSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"locations": {
+			Type:     schema.TypeList,
+			Computed: true,
+			Elem: &schema.Resource{
+				Schema: DataLocationSchema(),
+			},
 		},
-	})
+	}
 }

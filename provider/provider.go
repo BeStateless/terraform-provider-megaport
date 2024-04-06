@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package provider
 
 import (
 	"errors"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/megaport/terraform-provider-megaport/data_megaport"
 	"github.com/megaport/terraform-provider-megaport/resource_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
@@ -47,11 +47,13 @@ func Provider() *schema.Provider {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MEGAPORT_PASSWORD", nil),
+				Sensitive:   true,
 			},
 			"mfa_otp_key": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MEGAPORT_MFA_OTP_KEY", nil),
+				Sensitive:   true,
 			},
 			"delete_ports": {
 				Type:     schema.TypeBool,
@@ -70,7 +72,9 @@ func Provider() *schema.Provider {
 		ConfigureFunc: providerConfigure,
 		DataSourcesMap: map[string]*schema.Resource{
 			"megaport_port":             data_megaport.MegaportPort(),
+			"megaport_ports":            data_megaport.MegaportPorts(),
 			"megaport_location":         data_megaport.MegaportLocation(),
+			"megaport_locations":        data_megaport.MegaportLocations(),
 			"megaport_vxc":              data_megaport.MegaportVXC(),
 			"megaport_partner_port":     data_megaport.MegaportPartnerPort(),
 			"megaport_aws_connection":   data_megaport.MegaportAWSConnection(),

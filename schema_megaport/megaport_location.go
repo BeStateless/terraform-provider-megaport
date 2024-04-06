@@ -14,7 +14,7 @@
 
 package schema_megaport
 
-import "github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
 // DataLocationSchema is the data schema of a Megaport Location
 func DataLocationSchema() map[string]*schema.Schema {

@@ -15,13 +15,16 @@
 package resource_megaport
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/directconnect"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/megaport/megaportgo/types"
 	"github.com/megaport/terraform-provider-megaport/schema_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
@@ -100,15 +103,83 @@ func resourceMegaportAWSConnectionRead(d *schema.ResourceData, m interface{}) er
 		return retrievalErr
 	}
 
-	d.Set("vxc_internal_type", "aws")
-
-	// Aws read
-	if vifId := vxc.ExtractAwsId(vxcDetails); vifId != "" {
-		d.Set("aws_id", vifId)
+	err := d.Set("vxc_internal_type", "aws")
+	if err != nil {
+		return err
 	}
 
-	if connectionId := vxc.ExtractConnectionId(vxcDetails); connectionId != "" {
-		d.Set("connection_id", connectionId)
+	cspSettings := d.Get("csp_settings").(*schema.Set).List()[0].(map[string]interface{})
+	connectType := types.CONNECT_TYPE_AWS_VIF
+	hostedConnection := cspSettings["hosted_connection"].(bool)
+	if hostedConnection {
+		connectType = types.CONNECT_TYPE_AWS_HOSTED_CONNECTION
+	}
+
+	switch connectType {
+	case types.CONNECT_TYPE_AWS_VIF:
+		{
+			_, awsIdErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+				for range ticker.C {
+					if vifId := vxc.ExtractAwsId(vxcDetails); vifId != "" {
+						err := d.Set("aws_id", vifId)
+						if err != nil {
+							return false, err
+						}
+						err = d.Set("connection_id", "")
+						if err != nil {
+							return false, err
+						}
+						break
+					}
+					select {
+					case <-ctx.Done():
+						return false, ctx.Err()
+					default:
+						continue
+					}
+				}
+				return true, nil
+			})
+
+			if awsIdErr != nil {
+				return awsIdErr
+			}
+		}
+	case types.CONNECT_TYPE_AWS_HOSTED_CONNECTION:
+		{
+			_, connectionIderr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+				for range ticker.C {
+					if connectionId := vxc.ExtractConnectionId(vxcDetails); connectionId != "" {
+						err := d.Set("connection_id", connectionId)
+						if err != nil {
+							return false, err
+						}
+						err = d.Set("aws_id", "")
+						if err != nil {
+							return false, err
+						}
+						break
+					}
+					select {
+					case <-ctx.Done():
+						return false, ctx.Err()
+					default:
+						continue
+					}
+				}
+				return true, nil
+			})
+
+			if connectionIderr != nil {
+				return connectionIderr
+			}
+		}
+	default:
+		return fmt.Errorf("unknown connection type: %s", connectType)
 	}
 
 	// AWS CSP read

@@ -15,11 +15,16 @@
 package resource_megaport
 
 import (
+	"context"
+	"errors"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+
+	"github.com/megaport/megaportgo/mega_err"
 	vxc_service "github.com/megaport/megaportgo/service/vxc"
 	"github.com/megaport/megaportgo/types"
+
 	"github.com/megaport/terraform-provider-megaport/schema_megaport"
 	"github.com/megaport/terraform-provider-megaport/terraform_utility"
 )
@@ -44,6 +49,7 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 	cspSettings := d.Get("csp_settings").(*schema.Set).List()[0].(map[string]interface{})
 	rateLimit := d.Get("rate_limit").(int)
 	serviceKey := cspSettings["service_key"].(string)
+	var innerVlan *int = nil
 
 	// peerings
 	var peerings []types.PartnerOrderAzurePeeringConfig
@@ -57,6 +63,7 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 			SharedKey:       private_peering["shared_key"].(string),
 			VLAN:            private_peering["requested_vlan"].(int),
 		}
+		innerVlan = &new_private_peering.VLAN
 		peerings = append(peerings, new_private_peering)
 	} else if cspSettings["auto_create_private_peering"].(bool) {
 		new_private_peering := types.PartnerOrderAzurePeeringConfig{
@@ -83,6 +90,28 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 		peerings = append(peerings, new_microsoft_peering)
 	}
 
+	// Azure seems to be eventually consistent.  Thus we wait for megaport to see the service key before we move on
+	_, serviceKeyErr := doWaitFor(context.Background(), 5*time.Minute, func(ctx context.Context) (bool, error) {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if _, serviceKeyLookupErr := vxc.LookupAzureServiceKey(serviceKey); serviceKeyLookupErr != nil {
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				default:
+					continue
+				}
+			}
+			break
+		}
+		return true, nil
+	})
+
+	if serviceKeyErr != nil {
+		return serviceKeyErr
+	}
+
 	// get partner port
 	partnerPortId, partnerLookupErr := vxc.LookupPartnerPorts(serviceKey, rateLimit, vxc_service.PARTNER_AZURE, "")
 	if partnerLookupErr != nil {
@@ -99,6 +128,7 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 	bEndConfiguration := types.PartnerOrderBEndConfiguration{
 		PartnerPortID: partnerPortId,
 		PartnerConfig: partnerConfig,
+		InnerVLAN:     innerVlan,
 	}
 
 	vxcId, buyErr := vxc.BuyPartnerVXC(
@@ -114,13 +144,69 @@ func resourceMegaportAzureConnectionCreate(d *schema.ResourceData, m interface{}
 	}
 
 	d.SetId(vxcId)
-	vxc.WaitForVXCProvisioning(vxcId)
-	time.Sleep(60 * time.Second) // wait so that the vLANs will be available.
+
+	// default waits up to 15 minutes for it to report that the VXC is LIVE,
+	// checking every 30 seconds and logging every 2 minutes 30 seconds.
+	// _, err := vxc.WaitForVXCProvisioning(vxcId)
+	// we are going to set an initial timeout of 15 minutes. If it expires, we'll
+	// subtract 5 minutes and try again for up to a total of 30 minutes.
+	timeout := 15 * time.Minute
+	pollFrequency := 30 * time.Second
+	for {
+		if timeout <= 0 {
+			return errors.New(mega_err.ERR_VXC_PROVISION_TIMEOUT_EXCEED)
+		}
+
+		_, err := doWaitFor(
+			context.Background(), timeout, func(ctx context.Context) (bool, error) {
+				return vxc.WaitForVXCProvisioningCtx(ctx, pollFrequency, vxcId)
+			},
+		)
+		if err == nil {
+			break
+		}
+
+		if err.Error() == mega_err.ERR_VXC_PROVISION_TIMEOUT_EXCEED ||
+			err.Error() == mega_err.ERR_VXC_NOT_LIVE {
+			timeout = timeout - (5 * time.Minute)
+		}
+	}
 	return resourceMegaportAzureConnectionRead(d, m)
+}
+
+func doWaitFor(parentCtx context.Context, timeout time.Duration, f func(ctx context.Context) (bool, error)) (
+	bool,
+	error,
+) {
+	ctx, cancelFunc := context.WithTimeout(parentCtx, timeout)
+	defer cancelFunc()
+	return f(ctx)
 }
 
 func resourceMegaportAzureConnectionRead(d *schema.ResourceData, m interface{}) error {
 	return ResourceMegaportVXCRead(d, m)
+}
+
+func checkedCast[T interface{}](input *interface{}) *T {
+	if input == nil {
+		return nil
+	}
+	cast, check := (*input).(T)
+	if !check {
+		return nil
+	}
+	return &cast
+}
+
+func digOutTfConfig[T interface{}](d *schema.ResourceData, key string) *T {
+	if d == nil {
+		return nil
+	}
+	keyLookup, found := (*d).GetOk(key)
+	if !found {
+		return nil
+	}
+	return checkedCast[T](&keyLookup)
 }
 
 func resourceMegaportAzureConnectionUpdate(d *schema.ResourceData, m interface{}) error {
@@ -133,20 +219,59 @@ func resourceMegaportAzureConnectionUpdate(d *schema.ResourceData, m interface{}
 		}
 	}
 
-	if d.HasChange("vxc_name") || d.HasChange("rate_limit") || d.HasChange("a_end") {
-		_, updateErr := vxc.UpdateVXC(d.Id(), d.Get("vxc_name").(string),
+	if d.HasChange("vxc_name") || d.HasChange("rate_limit") || d.HasChange("a_end") || d.HasChange("csp_settings") {
+		var requestedVlan *int = nil
+		cspSettings := digOutTfConfig[map[string]interface{}](d, "csp_settings")
+		if cspSettings != nil {
+			privatePeeringTf, privatePeeringFound := (*cspSettings)["private_peering"]
+			if privatePeeringFound {
+				privatePeering := checkedCast[map[string]interface{}](&privatePeeringTf)
+				if privatePeering != nil {
+					vlanLookup := (*privatePeering)["requested_vlan"]
+					requestedVlan = checkedCast[int](&vlanLookup)
+				}
+			}
+		}
+
+		_, updateErr := vxc.UpdateVXCWithInnerVlan(d.Id(), d.Get("vxc_name").(string),
 			d.Get("rate_limit").(int),
 			aVlan,
-			0)
+			0,
+			requestedVlan)
 
 		if updateErr != nil {
 			return updateErr
 		}
 
-		vxc.WaitForVXCUpdated(d.Id(), d.Get("vxc_name").(string),
-			d.Get("rate_limit").(int),
-			aVlan,
-			0)
+		timeout := 15 * time.Minute
+		pollFrequency := 30 * time.Second
+		for {
+			if timeout <= 0 {
+				return errors.New(mega_err.ERR_VXC_UPDATE_TIMEOUT_EXCEED)
+			}
+
+			_, err := doWaitFor(
+				context.Background(), timeout, func(ctx context.Context) (bool, error) {
+					return vxc.WaitForVXCUpdatedCtx(
+						ctx,
+						pollFrequency,
+						d.Id(),
+						d.Get("vxc_name").(string),
+						d.Get("rate_limit").(int),
+						aVlan,
+						0,
+					)
+				},
+			)
+			if err == nil {
+				break
+			}
+
+			if err.Error() == mega_err.ERR_VXC_UPDATE_TIMEOUT_EXCEED ||
+				err.Error() == mega_err.ERR_VXC_NOT_LIVE {
+				timeout = timeout - (5 * time.Minute)
+			}
+		}
 	}
 
 	return resourceMegaportAzureConnectionRead(d, m)

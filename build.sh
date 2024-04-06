@@ -13,9 +13,9 @@
 # limitations under the License.
 
 provider_directory="$(pwd)"
-GO111MODULE=on GOSUMDB=off go get -d github.com/megaport/megaportgo
+GOSUMDB=off go mod download
 rm -f bin/*
-version="$(git describe --tags)"
+version="v0.2.10-stateless-4"
 provider_filename="$(pwd)/bin/terraform-provider-megaport_$version"
 provider_filename_no_version="$(pwd)/bin/terraform-provider-megaport"
 go build -o $provider_filename
@@ -26,10 +26,10 @@ cd ~
 arch=$(go version | cut -d" " -f4 | sed 's/\//_/g')
 plugin_directory="$(pwd)/.terraform.d/plugins/${arch}/"
 mkdir -p $plugin_directory
-ln -s $provider_filename_no_version $plugin_directory
+ln -s --force $provider_filename_no_version $plugin_directory
 echo "Symbolic link created from build directory to terraform.d. < 0.13"
 plugin_directory="$(pwd)/.terraform.d/plugins/megaport.com/megaport/megaport/${version:1}/${arch}/"
 mkdir -p $plugin_directory
-ln -s $provider_filename_no_version $plugin_directory
+ln -s --force $provider_filename_no_version $plugin_directory
 echo "Symbolic link created from build directory to terraform.d. >= 0.13"
 cd $provider_directory
